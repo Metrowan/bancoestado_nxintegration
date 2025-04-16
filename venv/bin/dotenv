@@ -1,4 +1,4 @@
-#!/home/sebastian/Descargas/bancoestado_api/venv/bin/python3
+#!/home/sebastian/code-space/bancoestado_nxintegration/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
