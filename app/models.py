@@ -1,46 +1,35 @@
-from sqlalchemy import Column, Integer, String, Date, Enum, DECIMAL
-from sqlalchemy.orm import relationship, foreign
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum, DECIMAL
+from sqlalchemy.orm import relationship
 from .database import Base
-import enum
-
-class InvoiceStatus(enum.Enum):
-    not_paid = "not_paid"
-    paid = "paid"
-    deleted = "deleted"
-    pending = "pending"
 
 class Customer(Base):
     __tablename__ = "customers"
 
     id = Column(Integer, primary_key=True)
     name = Column(String(256))
-    deleted = Column(Enum("1", "0"), default="0")
 
-    # No declaramos back_populates porque no hay ForeignKey real
-
+    # Relación bidireccional
+    info = relationship("CustomerInfo", back_populates="customer", uselist=False)
+    invoices = relationship("Invoice", back_populates="customer")
 
 class CustomerInfo(Base):
     __tablename__ = "customer_info"
 
-    customer_id = Column(Integer, primary_key=True)
-    passport = Column(String(64))
+    customer_id = Column(Integer, ForeignKey("customers.id"), primary_key=True)
+    passport = Column(String(32))
 
-    customer = relationship(
-        "Customer",
-        primaryjoin="Customer.id==foreign(CustomerInfo.customer_id)",
-        viewonly=True,
-        uselist=False
-    )
-
+    customer = relationship("Customer", back_populates="info")
 
 class Invoice(Base):
-    __tablename__ = 'invoices'
+    __tablename__ = "invoices"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    customer_id = Column(Integer, nullable=False)
-    number = Column(String(64), nullable=False)
+    id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"))
+    number = Column(String(64))
     date_created = Column(Date)
     date_till = Column(Date)
     total = Column(DECIMAL(19, 4))
-    status = Column(Enum('not_paid', 'paid', 'deleted', 'pending'), default='not_paid', nullable=False)
-    deleted = Column(Enum('0', '1'), default='0', nullable=False) 
+    status = Column(Enum("not_paid", "paid", "deleted", "pending"), default="not_paid")
+    deleted = Column(Enum("0", "1"), default="0")
+
+    customer = relationship("Customer", back_populates="invoices")

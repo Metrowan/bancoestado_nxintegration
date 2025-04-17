@@ -1,9 +1,9 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import func
 import re
 from .models import CustomerInfo, Invoice
 from datetime import date
-import uuid  # Importar para generar UUID
+import uuid
 
 def normalizar_rut(rut: str) -> str:
     return re.sub(r'[^0-9kK]', '', rut).lower().strip()
@@ -11,14 +11,14 @@ def normalizar_rut(rut: str) -> str:
 def get_client_debt_by_rut(db: Session, rut: str):
     rut_normalizado = normalizar_rut(rut)
 
-    clientes_info = db.query(CustomerInfo).options(
-        joinedload(CustomerInfo.customer)
-    ).filter(
+    clientes_info = db.query(CustomerInfo).filter(
         func.replace(func.replace(func.lower(CustomerInfo.passport), '.', ''), '-', '') == rut_normalizado
     ).all()
 
     if not clientes_info:
-        return None
+        return {
+            "detalle": "Cliente no encontrado"
+        }
 
     customer_ids = [cliente.customer_id for cliente in clientes_info]
 
@@ -32,16 +32,20 @@ def get_client_debt_by_rut(db: Session, rut: str):
         return {
             "rut_cliente": clientes_info[0].passport,
             "nombre_cliente": clientes_info[0].customer.name if clientes_info[0].customer else "No disponible",
-            "mensaje": "El cliente no posee deudas vigentes.",
-            "numero_orden": str(uuid.uuid4())  # Agregar UUID aunque no tenga deuda
+            "numero_orden": str(uuid.uuid4()),
+            "mensaje": "El cliente no posee deudas vigentes."
         }
 
     total_debt = 0
+    expired_debt = 0
     boletas = []
 
     for invoice in invoices:
         monto = float(invoice.total or 0)
+        vencido = invoice.date_till < date.today()
         total_debt += monto
+        if vencido:
+            expired_debt += monto
 
         boletas.append({
             "id_boleta": invoice.id,
@@ -49,13 +53,15 @@ def get_client_debt_by_rut(db: Session, rut: str):
             "periodo": f"{invoice.date_created} - {invoice.date_till}",
             "monto": monto,
             "fecha_vencimiento": str(invoice.date_till),
-            "customer_id": invoice.customer_id
+            "customer_id": invoice.customer_id,
+            "vencido": vencido
         })
 
     return {
         "rut_cliente": clientes_info[0].passport,
         "nombre_cliente": clientes_info[0].customer.name if clientes_info[0].customer else "No disponible",
         "monto_deuda_total": total_debt,
-        "numero_orden": str(uuid.uuid4()),  # ← Solo se agrega esto
+        "monto_deuda_vencida": expired_debt,
+        "numero_orden": str(uuid.uuid4()),
         "boletas": boletas
     }
