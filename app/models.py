@@ -43,4 +43,4 @@ class Invoice(Base):
     date_till = Column(Date)
     total = Column(DECIMAL(19, 4))
     status = Column(Enum('not_paid', 'paid', 'deleted', 'pending'), default='not_paid', nullable=False)
-    deleted = Column(Enum('0', '1'), default='0', nullable=False)  # <- ⚠️ ESTA LÍNEA ES CLAVE
+    deleted = Column(Enum('0', '1'), default='0', nullable=False) 

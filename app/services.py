@@ -3,6 +3,7 @@ from sqlalchemy import func
 import re
 from .models import CustomerInfo, Invoice
 from datetime import date
+import uuid  # Importar para generar UUID
 
 def normalizar_rut(rut: str) -> str:
     return re.sub(r'[^0-9kK]', '', rut).lower().strip()
@@ -27,6 +28,14 @@ def get_client_debt_by_rut(db: Session, rut: str):
         Invoice.deleted == "0"
     ).all()
 
+    if not invoices:
+        return {
+            "rut_cliente": clientes_info[0].passport,
+            "nombre_cliente": clientes_info[0].customer.name if clientes_info[0].customer else "No disponible",
+            "mensaje": "El cliente no posee deudas vigentes.",
+            "numero_orden": str(uuid.uuid4())  # Agregar UUID aunque no tenga deuda
+        }
+
     total_debt = 0
     boletas = []
 
@@ -47,6 +56,6 @@ def get_client_debt_by_rut(db: Session, rut: str):
         "rut_cliente": clientes_info[0].passport,
         "nombre_cliente": clientes_info[0].customer.name if clientes_info[0].customer else "No disponible",
         "monto_deuda_total": total_debt,
-        "numero_orden": ", ".join([str(cid) for cid in customer_ids]),
+        "numero_orden": str(uuid.uuid4()),  # ← Solo se agrega esto
         "boletas": boletas
     }
