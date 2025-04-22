@@ -89,6 +89,8 @@ from .models import CustomerInfo, Invoice, BancoEstadoInvoice, BancoEstadoData
 from .local_database import LocalSession
 from datetime import date
 import uuid
+from fastapi import HTTPException
+from .schema import NotificacionPagoRequest 
 
 def normalizar_rut(rut: str) -> str:
     return re.sub(r'[^0-9kK]', '', rut).lower().strip()
@@ -192,3 +194,31 @@ def guardar_en_bd_local(response_data: dict):
         raise e
     finally:
         local_db.close()
+
+def notificar_pago(db: Session, request: NotificacionPagoRequest):
+    # Buscar el registro local con el número de orden
+    be_data = db.query(BancoEstadoData).filter_by(numero_orden=request.numero_orden).first()
+
+    if not be_data:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    # Validar que el monto pagado sea igual al total adeudado
+    if request.monto_pagado != be_data.monto_deuda_total:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El monto pagado ({request.monto_pagado}) no coincide con la deuda total ({be_data.monto_deuda_total})"
+        )
+
+    # Actualizar los campos de pago
+    be_data.fecha_pago = request.fecha_pago
+    be_data.fecha_contable = request.fecha_contable
+    be_data.canal_pago = request.canal_pago
+    be_data.estado = request.estado
+    be_data.monto_pagado = request.monto_pagado
+
+    db.commit()
+
+    return {
+        "mensaje": "Notificación procesada correctamente",
+        "numero_orden": request.numero_orden
+    }

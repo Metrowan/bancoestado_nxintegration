@@ -64,3 +64,4 @@ class BancoEstadoData(Base):
     socio = Column(String(10), nullable=True, default="Nx", server_default="Nx")
 
     invoices = relationship("BancoEstadoInvoice", backref="orden", cascade="all, delete-orphan")
+
