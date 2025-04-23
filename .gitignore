@@ -1,0 +1,53 @@
+# Archivos y carpetas de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*$py.class
+
+# Archivos de entorno virtual
+.venv/
+env/
+
+# Archivos de configuración sensibles
+.env
+
+# Archivos de logs y temporales
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Archivos y carpetas de control de versiones
+.git/
+
+# Configuración de IDEs y editores
+.vscode/
+.idea/
+*.iml
+
+# Archivos generados por pytest y cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Archivos de empaquetado o distribución
+dist/
+build/
+*.egg-info/
+
+# Archivos de Docker y Compose no relevantes para el repositorio
+docker-compose.override.yml
+Dockerfile.*
+!Dockerfile.rabbitmq_worker
+
+# Módulos de Node.js (si los usas en tu proyecto)
+node_modules/
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+main.py
+*.db
+*.sql
