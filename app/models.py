@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Enum, DECIMAL, Boolean
 from sqlalchemy.orm import relationship
-from .database import Base
+from app.database import Base
 
 # Tablas relacionadas a Splynx
 class Customer(Base):

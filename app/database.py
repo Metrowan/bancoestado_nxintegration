@@ -1,9 +1,10 @@
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from app.config import settings
 
 # Reemplaza con tu propia cadena de conexión
-DATABASE_URL = "mysql+pymysql://admin:090731Nx@192.168.50.13/splynx"
+DATABASE_URL = settings.SPLYNX_CONNECTION
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

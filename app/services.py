@@ -85,12 +85,12 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import re
-from .models import CustomerInfo, Invoice, BancoEstadoInvoice, BancoEstadoData
-from .local_database import LocalSession
+from app.models import CustomerInfo, Invoice, BancoEstadoInvoice, BancoEstadoData
+from app.local_database import LocalSession
 from datetime import date
 import uuid
 from fastapi import HTTPException
-from .schema import NotificacionPagoRequest 
+from app.schema import NotificacionPagoRequest 
 
 def normalizar_rut(rut: str) -> str:
     return re.sub(r'[^0-9kK]', '', rut).lower().strip()
@@ -98,9 +98,12 @@ def normalizar_rut(rut: str) -> str:
 def get_client_debt_by_rut(db: Session, rut: str):
     rut_normalizado = normalizar_rut(rut)
 
-    clientes_info = db.query(CustomerInfo).filter(
-        func.replace(func.replace(func.lower(CustomerInfo.passport), '.', ''), '-', '') == rut_normalizado
-    ).all()
+    try:
+        clientes_info = db.query(CustomerInfo).filter(
+            func.replace(func.replace(func.lower(CustomerInfo.passport), '.', ''), '-', '') == rut_normalizado
+        ).all()
+    except Exception as e:
+        print(e)
 
     if not clientes_info:
         return {
