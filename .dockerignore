@@ -1,0 +1,44 @@
+# Ignorar entornos virtuales locales
+.venv/
+env/
+
+# Ignorar archivos de configuración sensibles
+.env
+
+# Ignorar archivos y carpetas de control de versiones
+.git/
+.gitignore
+
+# Ignorar carpetas de caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyo
+*$py.class
+
+# Ignorar logs y archivos temporales
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Ignorar archivos de Docker Compose y Docker en el host
+docker-compose.override.yml
+Dockerfile.*
+
+# Ignorar carpetas específicas de IDEs y editores
+.vscode/
+.idea/
+*.iml
+
+# Ignorar archivos de pruebas locales
+tests/
+*.pytest_cache
+coverage/
+htmlcov/
+
+# Ignorar otros archivos o carpetas innecesarios
+node_modules/
+dist/
+build/
