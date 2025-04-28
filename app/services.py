@@ -199,17 +199,30 @@ def guardar_en_bd_local(response_data: dict):
         local_db.close()
 
 def notificar_pago(db: Session, request: NotificacionPagoRequest):
-    # Buscar el registro local con el número de orden
     be_data = db.query(BancoEstadoData).filter_by(numero_orden=request.numero_orden).first()
 
     if not be_data:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
 
-    # Validar que el monto pagado sea igual al total adeudado
-    if request.monto_pagado != be_data.monto_deuda_total:
+    # Obtener todas las boletas asociadas
+    boletas = db.query(BancoEstadoInvoice).filter_by(numero_orden=request.numero_orden).all()
+
+    if not boletas:
+        raise HTTPException(status_code=404, detail="No se encontraron boletas para esta orden")
+
+    # Calcular monto total y monto vencido
+    monto_total = sum([b.monto for b in boletas])
+    monto_vencido = sum([b.monto for b in boletas if b.vencido])
+
+    # Validar pago
+    if request.monto_pagado == monto_total:
+        pago_tipo = "total"
+    elif request.monto_pagado == monto_vencido:
+        pago_tipo = "vencido"
+    else:
         raise HTTPException(
             status_code=400,
-            detail=f"El monto pagado ({request.monto_pagado}) no coincide con la deuda total ({be_data.monto_deuda_total})"
+            detail=f"El monto pagado ({request.monto_pagado}) no coincide ni con la deuda total ({monto_total}) ni con la deuda vencida ({monto_vencido})"
         )
 
     # Actualizar los campos de pago
@@ -222,6 +235,6 @@ def notificar_pago(db: Session, request: NotificacionPagoRequest):
     db.commit()
 
     return {
-        "mensaje": "Notificación procesada correctamente",
+        "mensaje": f"Notificación procesada correctamente ({pago_tipo})",
         "numero_orden": request.numero_orden
     }

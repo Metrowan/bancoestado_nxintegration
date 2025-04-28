@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import os
 
-load_dotenv("../../.env")
+load_dotenv("../../.env") #Cambiar esto por ".env" cuando se esté en desarrollo
 
 class Settings(BaseSettings):
     KEYCLOAK_ISSUER: str = os.getenv("KEYCLOAK_ISSUER", "")
