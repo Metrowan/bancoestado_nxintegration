@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     KEYCLOAK_PUBLIC_KEY: str = os.getenv("KEYCLOAK_PUBLIC_KEY", "")
     SPLYNX_CONNECTION: str = os.getenv("SPLYNX_CONNECTION", "")
     BANCOESTADO_CONNECTION: str = os.getenv("BANCOESTADO_CONNECTION", "")
-
+    RABBITMQ_HOST: str = os.getenv("RABBITMQ_HOST", "")
+    RABBITMQ_ADMIN: str = os.getenv("RABBITMQ_ADMIN", "")
+    RABBITMQ_PASSWORD: str = os.getenv("RABBITMQ_PASSWORD", "")
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

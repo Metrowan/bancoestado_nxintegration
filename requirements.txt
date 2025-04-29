@@ -8,3 +8,4 @@ pydantic-settings
 pydantic
 mysql-connector-python
 cryptography
+aio_pika
