@@ -82,20 +82,191 @@
 #     db.commit()
 
 
+# from sqlalchemy.orm import Session
+# from sqlalchemy import func
+# from sqlalchemy.exc import SQLAlchemyError
+# from sqlalchemy import text, select
+# import re
+# from app.models import CustomerInfo, Invoice, BancoEstadoInvoice, BancoEstadoData
+# from app.local_database import LocalSession
+# from datetime import date
+# from starlette import status
+# import uuid
+# from fastapi import HTTPException
+# from app.schema import NotificacionPagoRequest 
+# from app.helpers.rabbitmq_client import RabbitMQClient
+# import json
+
+# def normalizar_rut(rut: str) -> str:
+#     return re.sub(r'[^0-9kK]', '', rut).lower().strip()
+
+# def get_client_debt_by_rut(db: Session, rut: str) -> dict:
+#     try:
+#         rut_norm = normalizar_rut(rut)
+        
+#         clientes = db.execute(
+#             text("CALL splynx.buscar_cliente_por_rut(:rut)"),
+#             {"rut": rut_norm}
+#         ).mappings().all()
+
+#         if not clientes:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail={"error": "client_not_found", "message": "Cliente no encontrado"}
+#             )
+        
+#         invoices = db.execute(
+#             text("CALL splynx.consultar_deuda_cliente(:rut)"),
+#             {"rut": rut_norm}
+#         ).mappings().all()
+
+#         order_id = str(uuid.uuid4())
+
+#         if not invoices:
+#             resp = {
+#                 "rut_cliente": rut_norm,
+#                 "nombre_cliente": clientes[0]["nombre_cliente"],
+#                 "numero_orden": order_id,
+#                 "mensaje": "El cliente no posee deudas vigentes."
+#             }
+#             # guardar_en_bd_local(resp)
+#             return resp
+        
+#         total = sum(int(inv["total"] or 0) for inv in invoices)
+#         vencido = sum(int(inv["total"] or 0) for inv in invoices if inv["vencido"])
+#         boletas = [
+#             {
+#                 "id_boleta": inv["invoice_id"],
+#                 "numero_boleta": inv["numero_boleta"],
+#                 "periodo": f"{inv['fecha_creacion']} - {inv['fecha_vencimiento']}",
+#                 "monto": int(inv["total"] or 0),
+#                 "fecha_vencimiento": inv["fecha_vencimiento"].isoformat(),
+#                 "customer_id": inv["id_cliente"],
+#                 "vencido": inv["vencido"]
+#             }
+#             for inv in invoices
+#         ]
+
+#         resp = {
+#             "rut_cliente": rut_norm,
+#             "nombre_cliente": clientes[0]["nombre_cliente"],
+#             "monto_deuda_total": total,
+#             "monto_deuda_vencida": vencido,
+#             "numero_orden": order_id,
+#             "boletas": boletas
+#         }
+
+#         guardar_en_bd_local(resp)
+#         return resp
+    
+#     except HTTPException:
+#         raise
+#     except SQLAlchemyError as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail={"error": "database_error", "message": str(e)}
+#         )
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail={"error": "internal_error", "message": str(e)}
+#         )
+
+# def guardar_en_bd_local(response_data: dict):
+#     local_db = LocalSession()
+#     try:
+#         be_data = BancoEstadoData(
+#             numero_orden=response_data["numero_orden"],
+#             monto_deuda_total=int(response_data.get("monto_deuda_total", 0)),
+#             monto_deuda_vencida=int(response_data.get("monto_deuda_vencida", 0)),
+#             fecha_pago=None,
+#             fecha_contable=None,
+#             canal_pago=None,
+#             estado=None,
+#             monto_pagado=None,
+#             socio=None
+#         )
+#         local_db.add(be_data)
+
+#         for b in response_data.get("boletas", []):
+#             invoice = BancoEstadoInvoice(
+#                 id_boleta=b["id_boleta"],
+#                 numero_orden=response_data["numero_orden"],
+#                 numero_boleta=b["numero_boleta"],
+#                 monto=int(b["monto"]),
+#                 payment_id=None,
+#                 transaction_id=None,
+#                 vencido=b.get("vencido", False)
+#             )
+#             local_db.merge(invoice)
+
+#         local_db.commit()
+#     except Exception as e:
+#         local_db.rollback()
+#         raise e
+#     finally:
+#         local_db.close()
+
+# async def notificar_pago(rabbitmq: RabbitMQClient, db: Session, request: NotificacionPagoRequest):
+#     be_data = db.query(BancoEstadoData).filter_by(numero_orden=request.numero_orden).first()
+#     if not be_data:
+#         return {"status": "CLIENTE_NO_EXISTE"}
+
+#     boletas = db.query(BancoEstadoInvoice).filter_by(numero_orden=request.numero_orden).all()
+#     if not boletas:
+#         return {"status": "CLIENTE_NO_EXISTE"}
+
+#     monto_total = sum([b.monto for b in boletas])
+#     monto_vencido = sum([b.monto for b in boletas if b.vencido])
+
+#     if request.monto_pagado == monto_total:
+#         pago_tipo = "total"
+#     elif request.monto_pagado == monto_vencido:
+#         pago_tipo = "vencido"
+#     else:
+#         return {"status": "MONTO_NO_COINCIDE"}
+
+#     be_data.fecha_pago = request.fecha_pago
+#     be_data.fecha_contable = request.fecha_contable
+#     be_data.canal_pago = request.canal_pago
+#     be_data.estado = request.estado
+#     be_data.monto_pagado = request.monto_pagado
+
+#     db.commit()
+
+#     boletas_pagadas = boletas if pago_tipo == "total" else [b for b in boletas if b.vencido]
+
+#     for boleta in boletas_pagadas:
+#         msg = {
+#             "numero_orden": request.numero_orden,
+#             "splynx_domain": "micuenta.netxtreme.cl/bancoestado",
+#             "invoice_id": boleta.id_boleta,
+#             "canal_pago": request.canal_pago,
+#             "socio": "Nx"
+#         }
+#         try:
+#             await rabbitmq.send_message("bancoestado_invoices", msg)
+#         except Exception:
+#             return {"status": "ERROR_INTERNO"}
+
+#     return {
+#         "status": "OK",
+#         "numero_orden": request.numero_orden,
+#         "tipo_pago": pago_tipo
+#     }
+
+
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import text, select
 import re
+import uuid
+from datetime import date
 from app.models import CustomerInfo, Invoice, BancoEstadoInvoice, BancoEstadoData
 from app.local_database import LocalSession
-from datetime import date
-from starlette import status
-import uuid
 from fastapi import HTTPException
-from app.schema import NotificacionPagoRequest 
+from app.schema import NotificacionPagoRequest
 from app.helpers.rabbitmq_client import RabbitMQClient
-import json
 
 def normalizar_rut(rut: str) -> str:
     return re.sub(r'[^0-9kK]', '', rut).lower().strip()
@@ -111,7 +282,7 @@ def get_client_debt_by_rut(db: Session, rut: str) -> dict:
 
         if not clientes:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail={"error": "client_not_found", "message": "Cliente no encontrado"}
             )
         
@@ -123,14 +294,12 @@ def get_client_debt_by_rut(db: Session, rut: str) -> dict:
         order_id = str(uuid.uuid4())
 
         if not invoices:
-            resp = {
+            return {
                 "rut_cliente": rut_norm,
                 "nombre_cliente": clientes[0]["nombre_cliente"],
                 "numero_orden": order_id,
                 "mensaje": "El cliente no posee deudas vigentes."
             }
-            # guardar_en_bd_local(resp)
-            return resp
         
         total = sum(int(inv["total"] or 0) for inv in invoices)
         vencido = sum(int(inv["total"] or 0) for inv in invoices if inv["vencido"])
@@ -163,12 +332,12 @@ def get_client_debt_by_rut(db: Session, rut: str) -> dict:
         raise
     except SQLAlchemyError as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail={"error": "database_error", "message": str(e)}
         )
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail={"error": "internal_error", "message": str(e)}
         )
 
@@ -208,58 +377,52 @@ def guardar_en_bd_local(response_data: dict):
         local_db.close()
 
 async def notificar_pago(rabbitmq: RabbitMQClient, db: Session, request: NotificacionPagoRequest):
-    be_data = db.query(BancoEstadoData).filter_by(numero_orden=request.numero_orden).first()
+    try:
+        be_data = db.query(BancoEstadoData).filter_by(numero_orden=request.numero_orden).first()
+        if not be_data:
+            return {"status": "CLIENTE_NO_EXISTE"}
 
-    if not be_data:
-        raise HTTPException(status_code=404, detail="Orden no encontrada")
+        boletas = db.query(BancoEstadoInvoice).filter_by(numero_orden=request.numero_orden).all()
+        if not boletas:
+            return {"status": "CLIENTE_NO_EXISTE"}
 
-    # Obtener todas las boletas asociadas
-    boletas = db.query(BancoEstadoInvoice).filter_by(numero_orden=request.numero_orden).all()
+        monto_total = sum([b.monto for b in boletas])
+        monto_vencido = sum([b.monto for b in boletas if b.vencido])
 
-    if not boletas:
-        raise HTTPException(status_code=404, detail="No se encontraron boletas para esta orden")
+        if request.monto_pagado == monto_total:
+            pago_tipo = "total"
+        elif request.monto_pagado == monto_vencido:
+            pago_tipo = "vencido"
+        else:
+            return {"status": "MONTO_NO_COINCIDE"}
 
-    # Calcular monto total y monto vencido
-    monto_total = sum([b.monto for b in boletas])
-    monto_vencido = sum([b.monto for b in boletas if b.vencido])
+        be_data.fecha_pago = request.fecha_pago
+        be_data.fecha_contable = request.fecha_contable
+        be_data.canal_pago = request.canal_pago
+        be_data.estado = request.estado
+        be_data.monto_pagado = request.monto_pagado
+        db.commit()
 
-    # Validar pago
-    if request.monto_pagado == monto_total:
-        pago_tipo = "total"
-    elif request.monto_pagado == monto_vencido:
-        pago_tipo = "vencido"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El monto pagado ({request.monto_pagado}) no coincide ni con la deuda total ({monto_total}) ni con la deuda vencida ({monto_vencido})"
-        )
+        boletas_pagadas = boletas if pago_tipo == "total" else [b for b in boletas if b.vencido]
 
-    # Actualizar los campos de pago
-    be_data.fecha_pago = request.fecha_pago
-    be_data.fecha_contable = request.fecha_contable
-    be_data.canal_pago = request.canal_pago
-    be_data.estado = request.estado
-    be_data.monto_pagado = request.monto_pagado
+        for boleta in boletas_pagadas:
+            msg = {
+                "numero_orden": request.numero_orden,
+                "splynx_domain": "micuenta.netxtreme.cl/bancoestado",
+                "invoice_id": boleta.id_boleta,
+                "canal_pago": request.canal_pago,
+                "socio": "Nx"
+            }
+            try:
+                await rabbitmq.send_message("bancoestado_invoices", msg)
+            except Exception:
+                return {"status": "ERROR_INTERNO"}
 
-    db.commit()
-    boletas_pagadas = boletas
-    if pago_tipo == "vencido":
-        boletas_pagadas = [b for b in boletas if b.vencido == True]
-    
-    for boleta in boletas_pagadas:
-        msg = {
+        return {
+            "status": "OK",
             "numero_orden": request.numero_orden,
-            "splynx_domain": "micuenta.netxtreme.cl/bancoestado",
-            "invoice_id": boleta.id_boleta,
-            "canal_pago": request.canal_pago,
-            "socio": "Nx"
+            "tipo_pago": pago_tipo
         }
-        try:
-            await rabbitmq.send_message("bancoestado_invoices", msg)
-        except Exception as e:
-            raise HTTPException(500, "Error interno al notificar mensaje")
 
-    return {
-        "mensaje": f"Notificación procesada correctamente ({pago_tipo})",
-        "numero_orden": request.numero_orden
-    }
+    except Exception as e:
+        return {"status": "ERROR_INTERNO", "error": str(e)}
